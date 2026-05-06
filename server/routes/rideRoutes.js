@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { requestRide, acceptRide, completeRide } = require('../controllers/rideController');
+const { requestRide, acceptRide, startRide, completeRide } = require('../controllers/rideController');
 
 router.post('/request', requestRide);
 router.post('/accept', acceptRide);
@@ -10,5 +10,8 @@ router.get('/available', async (req, res) => {
   const rides = await require('../models/Ride').find({ status: 'requested' });
   res.json(rides);
 });
+
+router.post('/start', startRide);
+router.post('/complete', completeRide);
 
 module.exports = router;

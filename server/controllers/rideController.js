@@ -56,3 +56,35 @@ exports.completeRide = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
+
+// Action: Driver starts the ride
+exports.startRide = async (req, res) => {
+  try {
+    const { rideId } = req.body;
+    // Transition: Accepted -> In Progress
+    const ride = await Ride.findByIdAndUpdate(
+      rideId,
+      { status: 'in_progress' },
+      { new: true }
+    );
+    res.json(ride);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Action: Driver ends the ride
+exports.completeRide = async (req, res) => {
+  try {
+    const { rideId } = req.body;
+    // Transition: In Progress -> Completed
+    const ride = await Ride.findByIdAndUpdate(
+      rideId,
+      { status: 'completed' },
+      { new: true }
+    );
+    res.json(ride);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};

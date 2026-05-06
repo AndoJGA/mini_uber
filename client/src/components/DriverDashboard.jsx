@@ -28,24 +28,24 @@ const DriverDashboard = ({ user }) => {
   return (
     <div>
       <h1>Driver Dashboard</h1>
-      {activeRide ? (
-        <div>
-          <h2>Current Trip</h2>
-          <p>Pickup: {activeRide.pickupLocation}</p>
-          <p>Status: {activeRide.status}</p>
-          <button>Complete Ride</button>
-        </div>
-      ) : (
-        <div>
-          <h2>Available Requests</h2>
-          {availableRides.map(ride => (
-            <div key={ride._id} style={{ border: '1px solid #ccc', margin: '10px', padding: '10px' }}>
-              <p>{ride.pickupLocation} ➔ {ride.destination}</p>
-              <button onClick={() => handleAccept(ride._id)}>Accept Ride</button>
-            </div>
-          ))}
-        </div>
-      )}
+      {activeRide.status === 'accepted' && (
+        <button onClick={async () => {
+            const res = await axios.post('http://localhost:5000/api/rides/start', { rideId: activeRide._id });
+            setActiveRide(res.data);
+        }}>
+            Start Ride
+        </button>
+        )}
+
+        {activeRide.status === 'in_progress' && (
+        <button onClick={async () => {
+            const res = await axios.post('http://localhost:5000/api/rides/complete', { rideId: activeRide._id });
+            setActiveRide(res.data);
+            alert("Ride finished! Proceed to payment.");
+        }}>
+            End Ride
+        </button>
+        )}
     </div>
   );
 };
