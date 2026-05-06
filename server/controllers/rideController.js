@@ -1,5 +1,6 @@
 const Ride = require('../models/Ride');
 const User = require('../models/User');
+const Payment = require('../models/Payment');
 
 // Action: Rider sends request
 exports.requestRide = async (req, res) => {
@@ -84,6 +85,25 @@ exports.completeRide = async (req, res) => {
       { new: true }
     );
     res.json(ride);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+exports.processPayment = async (req, res) => {
+  try {
+    const { rideId, amount } = req.body;
+    
+    // Create the Payment object
+    const payment = new Payment({
+      rideId,
+      amount,
+      status: 'completed',
+      transactionId: 'TXN-' + Math.random().toString(36).substr(2, 9)
+    });
+
+    await payment.save();
+    res.json({ message: "Payment processed successfully", payment });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

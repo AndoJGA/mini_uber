@@ -21,19 +21,22 @@ const RiderDashboard = ({ user }) => {
   return (
     <div>
       <h1>Rider Dashboard</h1>
-      {!currentRide ? (
-        <form onSubmit={handleRequest}>
-          <input type="text" placeholder="Pickup" onChange={(e) => setRideData({...rideData, pickupLocation: e.target.value})} required />
-          <input type="text" placeholder="Destination" onChange={(e) => setRideData({...rideData, destination: e.target.value})} required />
-          <p>Estimated Fare: ${rideData.fare}</p>
-          <button type="submit">Request Ride</button>
-        </form>
-      ) : (
-        <div>
-          <h3>Ride Status: {currentRide.status}</h3>
-          <p>From: {currentRide.pickupLocation} To: {currentRide.destination}</p>
-        </div>
-      )}
+      // Inside RiderDashboard.jsx
+{currentRide?.status === 'completed' && (
+  <div>
+    <h3>Ride Finished! Total: ${currentRide.fare}</h3>
+    <button onClick={async () => {
+      await axios.post('http://localhost:5000/api/rides/pay', { 
+        rideId: currentRide._id, 
+        amount: currentRide.fare 
+      });
+      alert("Payment successful! Thank you for riding.");
+      setCurrentRide(null); // Reset for next ride
+    }}>
+      Pay Now
+    </button>
+  </div>
+)}
     </div>
   );
 };
