@@ -1,28 +1,42 @@
-import axios from 'axios';
+const BASE = '/api';
+function getToken() { return sessionStorage.getItem('token'); }
 
-const API = axios.create({ baseURL: 'http://localhost:5000/api' });
+async function apiFetch(path, opts={}) {
+  const res = await fetch(BASE + path, {
+    ...opts,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(getToken() ? { Authorization: `Bearer ${getToken()}` } : {}),
+      ...opts.headers,
+    },
+    body: opts.body ? JSON.stringify(opts.body) : undefined,
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error || 'Request failed');
+  }
+  return res.json();
+}
 
-// Automatically attach the Auth Token to every request if it exists
-API.interceptors.request.use((req) => {
-  const token = localStorage.getItem('token');
-  if (token) req.headers.Authorization = `Bearer ${token}`;
-  return req;
-});
+export const login = (email, password) =>
+  apiFetch('/auth/login', { method:'POST', body:{email,password} });
 
-export const login = (formData) => API.post('/auth/login', formData);
-export const register = (formData) => API.post('/auth/register', formData);
+export const register = (payload) =>
+  apiFetch('/auth/register', { method:'POST', body:payload });
 
-// Ride endpoints
-export const requestRide = (rideData) => API.post('/rides/request', rideData);
-export const getAvailableRides = () => API.get('/rides/available');
-export const acceptRide = (rideId, driverId) => API.post('/rides/accept', { rideId, driverId });
-export const startRide = (rideId) => API.post('/rides/start', { rideId });
-export const completeRide = (rideId) => API.post('/rides/complete', { rideId });
-export const getRideDetails = (rideId) => API.get(`/rides/${rideId}`);
-export const processPayment = (paymentData) => API.post('/rides/pay', paymentData);
+export const requestRide = (payload) =>
+  apiFetch('/rides', { method:'POST', body:payload });
 
-export const getActiveRide = (userId, role) => API.get('/rides/active', { params: { userId, role } });
-export const getRiderHistory = (riderId) => API.get(`/rides/history/rider/${riderId}`);
-export const getDriverHistory = (driverId) => API.get(`/rides/history/driver/${driverId}`);
+export const acceptRide = (id) =>
+  apiFetch(`/rides/${id}/accept`, { method:'POST' });
 
-export default API;
+export const startRide = (id) =>
+  apiFetch(`/rides/${id}/start`, { method:'PATCH' });
+
+export const completeRide = (id) =>
+  apiFetch(`/rides/${id}/complete`, { method:'PATCH' });
+
+export const cancelRide = (id) =>
+  apiFetch(`/rides/${id}`, { method:'DELETE' });
+
+export const getHistory = () => apiFetch('/rides/history');

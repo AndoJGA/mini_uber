@@ -1,42 +1,28 @@
-// client/src/App.jsx
-import React, { useState } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import Register from './components/Register';
-import Login from './components/Login';
-import RiderDashboard from './components/RiderDashboard';
-import DriverDashboard from './components/DriverDashboard';
-import PaymentPage from './components/PaymentPage';
-import Navbar from './components/Navbar';
-import History from './components/History';
-import './App.css';
+import { useState, useEffect } from 'react';
+import AuthPage from './pages/AuthPage';
+import PassengerDashboard from './pages/PassengerDashboard';
+import DriverDashboard from './pages/DriverDashboard';
+import Toast from './components/Toast';
 
-function App() {
-  const [user, setUser] = useState(JSON.parse(localStorage.getItem('user')) || null);
-
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
+function decodeJwt(token) {
+  try { return JSON.parse(atob(token.split('.')[1])); }
+  catch { return null; }
+}
+export default function App() {
+  const [user, setUser] = useState(() => {
+    const t = sessionStorage.getItem('token');
+    return t ? decodeJwt(t) : null;
+  });
+  const onLogin = (token) => {
+    sessionStorage.setItem('token', token);
+    setUser(decodeJwt(token));
+  };
+  const onLogout = () => {
+    sessionStorage.removeItem('token');
     setUser(null);
   };
-
-  return (
-    <Router>
-      <Navbar user={user} onLogout={handleLogout} />
-      <div className="container">
-        <Routes>
-          <Route path="/register" element={<Register />} />
-          <Route path="/login" element={<Login setUser={setUser} />} />
-          
-          <Route path="/rider" element={user?.role === 'rider' ? <RiderDashboard user={user} /> : <Navigate to="/login" />} />
-          <Route path="/driver" element={user?.role === 'driver' ? <DriverDashboard user={user} /> : <Navigate to="/login" />} />
-          <Route path="/payment" element={<PaymentPage />} />
-          <Route path="/history" element={user ? <History user={user} /> : <Navigate to="/login" />} />
-          
-          <Route path="/" element={<Navigate to={user ? (user.role === 'rider' ? '/rider' : '/driver') : "/login"} />} />
-        </Routes>
-      </div>
-    </Router>
-  );
+  if (!user) return <><AuthPage onLogin={onLogin}/><Toast/></>;
+  if (user.role==='passenger')
+    return <><PassengerDashboard user={user} onLogout={onLogout}/><Toast/></>;
+  return <><DriverDashboard user={user} onLogout={onLogout}/><Toast/></>;
 }
-
-export default App;

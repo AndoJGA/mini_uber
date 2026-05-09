@@ -1,41 +1,25 @@
-const User = require('../models/User');
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
+const router = require('express').Router();
+const AuthService = require('../services/AuthService');
 
-exports.register = async (req, res) => {
+router.post('/register', async (req, res) => {
+  const { name, email, password, role, vehiclePlate, vehicleModel } = req.body;
+  if (!name||!email||!password||!role)
+    return res.status(400).json({ error: 'Missing fields' });
   try {
-    const { name, email, password, role } = req.body; // Role: 'rider' or 'driver'
-    
-    // Encapsulation: Hiding the password complexity via hashing
-    const hashedPassword = await bcrypt.hash(password, 10);
-    
-    const newUser = new User({
-      name,
-      email,
-      password: hashedPassword,
-      role 
-    });
-
-    await newUser.save();
-    res.status(201).json({ message: "User registered successfully" });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
+    const user = await AuthService.register(
+      name,email,password,role,vehiclePlate,vehicleModel);
+    res.status(201).json({ userId: user.user_id, role: user.role });
+  } catch(e) {
+    res.status(409).json({ error: e.message });
   }
-};
-
-exports.login = async (req, res) => {
+});
+router.post('/login', async (req, res) => {
+  const { email, password } = req.body;
   try {
-    const { email, password } = req.body;
-    const user = await User.findOne({ email });
-
-    if (!user || !(await bcrypt.compare(password, user.password))) {
-      return res.status(401).json({ message: "Invalid credentials" });
-    }
-
-    // Generate a token to maintain the session state
-    const token = jwt.sign({ id: user._id, role: user.role }, 'secret_key', { expiresIn: '1h' });
-    res.json({ token, user: { id: user._id, name: user.name, role: user.role } });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
+    const result = await AuthService.login(email, password);
+    res.json(result);
+  } catch(e) {
+    res.status(401).json({ error: e.message });
   }
-};
+});
+module.exports = router;
