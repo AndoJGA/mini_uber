@@ -1,11 +1,18 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import AuthPage from './pages/AuthPage';
 import PassengerDashboard from './pages/PassengerDashboard';
 import DriverDashboard from './pages/DriverDashboard';
 import Toast from './components/Toast';
 
 function decodeJwt(token) {
-  try { return JSON.parse(atob(token.split('.')[1])); }
+  try { 
+    const base64Url = token.split('.')[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+    }).join(''));
+    return JSON.parse(jsonPayload);
+  }
   catch { return null; }
 }
 export default function App() {

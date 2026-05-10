@@ -1,31 +1,14 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useWebSocket } from '../hooks/useWebSocket';
 import * as api from '../api';
 import RideHistory from './RideHistory';
 
 export default function DriverDashboard({ user, onLogout }) {
-  const [view, setView] = useState('dashboard');
-  const [phase, setPhase] = useState('available');
+  const [view, setView] = useState('dashboard'); // 'dashboard' | 'history'
+  const [phase, setPhase] = useState('available'); // available | accepted | inProgress
   const [requests, setRequests] = useState([]);
   const [currentRide, setCurrentRide] = useState(null);
-  
-  const mapRef = useRef(null);
-  const leafletMap = useRef(null);
-  const markers = useRef({ pickup: null, dest: null });
-
   const { subscribe } = useWebSocket();
-
-  // Initialize Leaflet Map
-  useEffect(() => {
-    if (view === 'dashboard' && mapRef.current && window.L && !leafletMap.current) {
-      leafletMap.current = L.map(mapRef.current, {
-        zoomControl: false,
-        attributionControl: false
-      }).setView([9.0249, 38.7469], 13);
-
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(leafletMap.current);
-    }
-  }, [view]);
 
   useEffect(() => {
     const unsubNew = subscribe('NEW_RIDE_REQUEST', (ride) => {
@@ -34,53 +17,19 @@ export default function DriverDashboard({ user, onLogout }) {
     const unsubTaken = subscribe('REQUEST_TAKEN', ({ requestId }) => {
       setRequests(prev => prev.filter(x => (x.request_id || x.requestId) !== requestId));
     });
+    const unsubFare = subscribe('FARE_UPDATE', (data) => {
+      setCurrentRide(prev => ({ ...prev, fareAmount: data.fare, fare_amount: data.fare }));
+    });
     const unsubCancel = subscribe('RIDE_CANCELLED', () => {
       alert('Passenger cancelled the ride');
       setPhase('available');
       setCurrentRide(null);
-      clearMarkers();
     });
 
     return () => {
-      unsubNew(); unsubTaken(); unsubCancel();
+      unsubNew(); unsubTaken(); unsubFare(); unsubCancel();
     };
   }, [subscribe]);
-
-  const clearMarkers = () => {
-    if (markers.current.pickup) markers.current.pickup.remove();
-    if (markers.current.dest) markers.current.dest.remove();
-    markers.current = { pickup: null, dest: null };
-  };
-
-  const updateMarkers = (ride) => {
-    if (!leafletMap.current || !window.L) return;
-    clearMarkers();
-
-    const pLat = ride.pickup_lat || ride.pickupLat;
-    const pLng = ride.pickup_lng || ride.pickupLng;
-    const dLat = ride.dest_lat || ride.destLat;
-    const dLng = ride.dest_lng || ride.destLng;
-
-    const pickupIcon = L.divIcon({
-      className: 'custom-div-icon',
-      html: `<div style="background-color: #3b82f6; width: 12px; height: 12px; border-radius: 50%; border: 2px solid white; display: flex; align-items: center; justify-content: center; color: white; font-size: 8px; font-weight: bold;">P</div>`,
-      iconSize: [12, 12],
-      iconAnchor: [6, 6]
-    });
-
-    const destIcon = L.divIcon({
-      className: 'custom-div-icon',
-      html: `<div style="background-color: #ef4444; width: 12px; height: 12px; border-radius: 50%; border: 2px solid white; display: flex; align-items: center; justify-content: center; color: white; font-size: 8px; font-weight: bold;">D</div>`,
-      iconSize: [12, 12],
-      iconAnchor: [6, 6]
-    });
-
-    markers.current.pickup = L.marker([pLat, pLng], { icon: pickupIcon }).addTo(leafletMap.current);
-    markers.current.dest = L.marker([dLat, dLng], { icon: destIcon }).addTo(leafletMap.current);
-
-    const group = L.featureGroup([markers.current.pickup, markers.current.dest]);
-    leafletMap.current.fitBounds(group.getBounds().pad(0.2));
-  };
 
   const handleAccept = async (requestId) => {
     try {
@@ -88,9 +37,8 @@ export default function DriverDashboard({ user, onLogout }) {
       setCurrentRide(ride);
       setPhase('accepted');
       setRequests([]);
-      updateMarkers(ride);
     } catch (err) {
-      alert(err.message === 'ALREADY_TAKEN' ? 'Ride already taken' : err.message);
+      alert(err.message === 'ALREADY_TAKEN' ? 'Ride already taken by another driver' : err.message);
       setRequests(prev => prev.filter(x => (x.request_id || x.requestId) !== requestId));
     }
   };
@@ -99,86 +47,148 @@ export default function DriverDashboard({ user, onLogout }) {
     try {
       await api.startRide(currentRide.request_id || currentRide.requestId);
       setPhase('inProgress');
-    } catch (err) { alert(err.message); }
+    } catch (err) {
+      alert(err.message);
+    }
   };
 
   const handleComplete = async () => {
     try {
       const { fare } = await api.completeRide(currentRide.request_id || currentRide.requestId);
-      alert(`Ride completed! Fare: ${fare.toFixed(2)} ETB`);
+      alert(`Ride completed! Fare: ${fare?.toFixed(2) || '0.00'} ETB`);
       setPhase('available');
       setCurrentRide(null);
-      clearMarkers();
-    } catch (err) { alert(err.message); }
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
+  const handleCancel = async () => {
+    try {
+      await api.cancelRide(currentRide.request_id || currentRide.requestId);
+      setPhase('available');
+      setCurrentRide(null);
+    } catch (err) {
+      alert(err.message);
+    }
   };
 
   return (
     <div className="dashboard-container">
-      <div className="side-panel">
-        <header>
-          <div>
-            <h2 style={{ margin: 0 }}>Driver: {user.name.split(' ')[0]}</h2>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.25rem' }}>
-              <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: phase === 'available' ? 'var(--primary)' : 'var(--warning)' }}></div>
-              <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase' }}>{phase}</span>
-            </div>
-          </div>
-          <button onClick={onLogout} className="secondary" style={{ padding: '0.5rem 1rem' }}>Logout</button>
-        </header>
+      <header className="app-header">
+        <div>
+          <h2 style={{ marginBottom: '4px' }}>Welcome, {user?.name || 'Driver'}</h2>
+          <span className={`badge ${phase === 'available' ? 'badge-success' : 'badge-warning'}`}>
+            {phase.replace('_', ' ')}
+          </span>
+        </div>
+        <button onClick={onLogout} className="btn btn-link">Logout</button>
+      </header>
 
-        <nav style={{ marginBottom: '1.5rem', display: 'flex', gap: '0.5rem' }}>
-          <button onClick={() => setView('dashboard')} className={view === 'dashboard' ? '' : 'secondary'} style={{ flex: 1 }}>Dashboard</button>
-          <button onClick={() => setView('history')} className={view === 'history' ? '' : 'secondary'} style={{ flex: 1 }}>History</button>
-        </nav>
+      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem' }}>
+        <button 
+          onClick={() => setView('dashboard')} 
+          className={`btn ${view === 'dashboard' ? 'btn-primary' : 'btn-outline'}`}
+          style={{ flex: 1, padding: '0.5rem' }}
+        >
+          Jobs
+        </button>
+        <button 
+          onClick={() => setView('history')} 
+          className={`btn ${view === 'history' ? 'btn-primary' : 'btn-outline'}`}
+          style={{ flex: 1, padding: '0.5rem' }}
+        >
+          Earnings
+        </button>
+      </div>
 
-        {view === 'history' ? <RideHistory /> : (
-          <div className="card">
-            {phase === 'available' && (
-              <div>
-                <h3>Incoming Requests</h3>
-                {requests.length === 0 ? (
-                  <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
-                    <p>No active requests nearby.</p>
-                  </div>
-                ) : (
-                  requests.map(req => (
-                    <div key={req.request_id || req.requestId} style={{ background: 'var(--bg-main)', padding: '1rem', borderRadius: '8px', marginBottom: '0.75rem', border: '1px solid var(--bg-accent)' }}>
-                      <div style={{ marginBottom: '1rem' }}>
-                        <p style={{ margin: '0 0 0.5rem', fontSize: '0.875rem' }}><strong style={{ color: 'var(--primary)' }}>PICKUP:</strong> {req.pickup_label || req.pickupLabel}</p>
-                        <p style={{ margin: 0, fontSize: '0.875rem' }}><strong style={{ color: 'var(--text-muted)' }}>DEST:</strong> {req.dest_label || req.destLabel}</p>
-                      </div>
-                      <button onClick={() => handleAccept(req.request_id || req.requestId)} style={{ width: '100%' }}>Accept Ride</button>
-                    </div>
-                  ))
-                )}
-              </div>
-            )}
-
-            {(phase === 'accepted' || phase === 'inProgress') && (
-              <div>
-                <h3 style={{ color: 'var(--primary)' }}>Current Trip</h3>
-                <div style={{ background: 'var(--bg-main)', padding: '1rem', borderRadius: '8px', marginBottom: '1.5rem' }}>
-                  <p style={{ margin: '0 0 0.5rem', fontSize: '0.875rem' }}><strong>From:</strong> {currentRide?.pickup_label || currentRide?.pickupLabel}</p>
-                  <p style={{ margin: 0, fontSize: '0.875rem' }}><strong>To:</strong> {currentRide?.dest_label || currentRide?.destLabel}</p>
+      {view === 'history' ? (
+        <RideHistory />
+      ) : (
+        <div className="card">
+          {phase === 'available' && (
+            <div>
+              <h3 style={{ marginBottom: '1.5rem' }}>New Requests</h3>
+              {requests.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '2rem 0', color: 'var(--text-secondary)' }}>
+                  <div className="spinner" style={{ marginBottom: '1rem' }}></div>
+                  <p>Searching for nearby trips...</p>
                 </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  {requests.map(req => (
+                    <div key={req.request_id || req.requestId} style={{ border: '1px solid var(--border)', padding: '1rem', borderRadius: '8px' }}>
+                      <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
+                          <div style={{ width: '8px', height: '8px', background: 'var(--accent)', borderRadius: '50%' }}></div>
+                          <div style={{ width: '1px', flex: 1, background: 'var(--border)' }}></div>
+                          <div style={{ width: '8px', height: '8px', background: 'var(--text)', borderRadius: '2px' }}></div>
+                        </div>
+                        <div style={{ flex: 1, fontSize: '0.875rem' }}>
+                          <div style={{ marginBottom: '8px' }}>{req.pickup_label || req.pickupLabel}</div>
+                          <div>{req.dest_label || req.destLabel}</div>
+                        </div>
+                      </div>
+                      <button 
+                        onClick={() => handleAccept(req.request_id || req.requestId)}
+                        className="btn btn-primary"
+                      >
+                        Accept Ride
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
-                {phase === 'accepted' ? (
-                  <div style={{ display: 'flex', gap: '0.75rem' }}>
-                    <button onClick={handleStart} style={{ flex: 1 }}>Start Ride</button>
-                    <button onClick={() => setPhase('available')} className="danger">Decline</button>
+          {(phase === 'accepted' || phase === 'inProgress') && (
+            <div>
+              <h3 style={{ marginBottom: '1.5rem' }}>Current Trip</h3>
+              <div style={{ background: 'var(--background)', padding: '1rem', borderRadius: '8px', marginBottom: '1.5rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', paddingBottom: '0.5rem', borderBottom: '1px solid var(--border)' }}>
+                  <span style={{ fontSize: '0.875rem', fontWeight: 'bold' }}>Trip Fare</span>
+                  <span style={{ fontSize: '1.25rem', fontWeight: 'bold', color: 'var(--success)' }}>
+                    {(currentRide?.fareAmount || currentRide?.fare_amount || 0).toFixed(2)} ETB
+                  </span>
+                </div>
+                <div style={{ display: 'flex', gap: '1rem' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
+                    <div style={{ width: '8px', height: '8px', background: 'var(--accent)', borderRadius: '50%' }}></div>
+                    <div style={{ width: '1px', flex: 1, background: 'var(--border)' }}></div>
+                    <div style={{ width: '8px', height: '8px', background: 'var(--text)', borderRadius: '2px' }}></div>
                   </div>
-                ) : (
-                  <button onClick={handleComplete} style={{ width: '100%', background: 'var(--primary)' }}>Complete Ride</button>
-                )}
+                  <div style={{ flex: 1, fontSize: '0.875rem' }}>
+                    <div style={{ marginBottom: '8px' }}>
+                      <span style={{ color: 'var(--text-secondary)', display: 'block', fontSize: '0.75rem' }}>PICKUP</span>
+                      {currentRide?.pickup_label || currentRide?.pickupLabel}
+                    </div>
+                    <div>
+                      <span style={{ color: 'var(--text-secondary)', display: 'block', fontSize: '0.75rem' }}>DESTINATION</span>
+                      {currentRide?.dest_label || currentRide?.destLabel}
+                    </div>
+                  </div>
+                </div>
               </div>
-            )}
-          </div>
-        )}
-      </div>
 
-      <div className="map-panel">
-        <div ref={mapRef} className="map-container" style={{ height: 'calc(100vh - 40px)', position: 'sticky', top: '20px' }}></div>
-      </div>
+              {phase === 'accepted' ? (
+                <div style={{ display: 'flex', gap: '1rem' }}>
+                  <button onClick={handleStart} className="btn btn-primary" style={{ flex: 2 }}>
+                    Start Ride
+                  </button>
+                  <button onClick={handleCancel} className="btn btn-danger" style={{ flex: 1 }}>
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <button onClick={handleComplete} className="btn btn-primary">
+                  Complete Trip
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

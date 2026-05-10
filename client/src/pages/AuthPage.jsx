@@ -8,10 +8,12 @@ export default function AuthPage({ onLogin }) {
     vehiclePlate: '', vehicleModel: ''
   });
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    setLoading(true);
     try {
       if (isLogin) {
         const { token } = await api.login(formData.email, formData.password);
@@ -23,119 +25,121 @@ export default function AuthPage({ onLogin }) {
       }
     } catch (err) {
       setError(err.message);
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', padding: '1rem' }}>
-      <div className="card" style={{ width: '100%', maxWidth: '400px', padding: '2.5rem' }}>
-        <div style={{ textAlign: 'center', marginBottom: '2.5rem' }}>
-          <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🚕</div>
-          <h1 style={{ margin: 0, fontSize: '1.75rem' }}>Mini Uber</h1>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Premium Ride-Sharing MVP</p>
+    <div className="card" style={{ marginTop: '2rem' }}>
+      <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem' }}>
+        <button 
+          onClick={() => setIsLogin(true)} 
+          className={isLogin ? "btn btn-primary" : "btn btn-outline"}
+          style={{ flex: 1 }}
+        >
+          Login
+        </button>
+        <button 
+          onClick={() => setIsLogin(false)} 
+          className={!isLogin ? "btn btn-primary" : "btn btn-outline"}
+          style={{ flex: 1 }}
+        >
+          Register
+        </button>
+      </div>
+
+      <form onSubmit={handleSubmit}>
+        {!isLogin && (
+          <div className="input-group">
+            <label>Name</label>
+            <input 
+              type="text" 
+              required 
+              placeholder="John Doe"
+              value={formData.name}
+              onChange={e => setFormData({ ...formData, name: e.target.value })}
+            />
+          </div>
+        )}
+        <div className="input-group">
+          <label>Email</label>
+          <input 
+            type="email" 
+            required 
+            placeholder="john@example.com"
+            value={formData.email}
+            onChange={e => setFormData({ ...formData, email: e.target.value })}
+          />
+        </div>
+        <div className="input-group">
+          <label>Password</label>
+          <input 
+            type="password" 
+            required 
+            placeholder="••••••••"
+            value={formData.password}
+            onChange={e => setFormData({ ...formData, password: e.target.value })}
+          />
         </div>
 
-        <div style={{ display: 'flex', background: 'var(--bg-main)', padding: '0.25rem', borderRadius: '8px', marginBottom: '2rem' }}>
-          <button 
-            onClick={() => setIsLogin(true)} 
-            className={isLogin ? '' : 'secondary'}
-            style={{ flex: 1, padding: '0.5rem', fontSize: '0.875rem' }}
-          >
-            Login
-          </button>
-          <button 
-            onClick={() => setIsLogin(false)} 
-            className={!isLogin ? '' : 'secondary'}
-            style={{ flex: 1, padding: '0.5rem', fontSize: '0.875rem' }}
-          >
-            Register
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit}>
-          {!isLogin && (
-            <div className="form-group">
-              <label>Full Name</label>
-              <input 
-                type="text" required 
-                value={formData.name}
-                onChange={e => setFormData({ ...formData, name: e.target.value })}
-              />
+        {!isLogin && (
+          <>
+            <div className="input-group">
+              <label>Join as</label>
+              <div style={{ display: 'flex', gap: '1.5rem', marginTop: '0.5rem' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                  <input 
+                    type="radio" 
+                    value="passenger" 
+                    checked={formData.role === 'passenger'}
+                    onChange={e => setFormData({ ...formData, role: e.target.value })}
+                  /> Passenger
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                  <input 
+                    type="radio" 
+                    value="driver" 
+                    checked={formData.role === 'driver'}
+                    onChange={e => setFormData({ ...formData, role: e.target.value })}
+                  /> Driver
+                </label>
+              </div>
             </div>
-          )}
-          <div className="form-group">
-            <label>Email Address</label>
-            <input 
-              type="email" required 
-              value={formData.email}
-              onChange={e => setFormData({ ...formData, email: e.target.value })}
-            />
-          </div>
-          <div className="form-group">
-            <label>Password</label>
-            <input 
-              type="password" required 
-              value={formData.password}
-              onChange={e => setFormData({ ...formData, password: e.target.value })}
-            />
-          </div>
 
-          {!isLogin && (
-            <>
-              <div className="form-group">
-                <label>Join as</label>
-                <div style={{ display: 'flex', gap: '1rem', marginTop: '0.5rem' }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', flex: 1, padding: '0.75rem', background: formData.role === 'passenger' ? 'var(--bg-accent)' : 'transparent', borderRadius: '8px', border: '1px solid var(--bg-accent)' }}>
-                    <input 
-                      type="radio" value="passenger" 
-                      checked={formData.role === 'passenger'}
-                      onChange={e => setFormData({ ...formData, role: e.target.value })}
-                      style={{ width: 'auto' }}
-                    /> <span style={{ fontSize: '0.875rem' }}>Passenger</span>
-                  </label>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', flex: 1, padding: '0.75rem', background: formData.role === 'driver' ? 'var(--bg-accent)' : 'transparent', borderRadius: '8px', border: '1px solid var(--bg-accent)' }}>
-                    <input 
-                      type="radio" value="driver" 
-                      checked={formData.role === 'driver'}
-                      onChange={e => setFormData({ ...formData, role: e.target.value })}
-                      style={{ width: 'auto' }}
-                    /> <span style={{ fontSize: '0.875rem' }}>Driver</span>
-                  </label>
+            {formData.role === 'driver' && (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <div className="input-group">
+                  <label>Vehicle Model</label>
+                  <input 
+                    type="text" 
+                    required 
+                    placeholder="Toyota Vitz"
+                    value={formData.vehicleModel}
+                    onChange={e => setFormData({ ...formData, vehicleModel: e.target.value })}
+                  />
+                </div>
+                <div className="input-group">
+                  <label>Plate Number</label>
+                  <input 
+                    type="text" 
+                    required 
+                    placeholder="AA-2-B12345"
+                    value={formData.vehiclePlate}
+                    onChange={e => setFormData({ ...formData, vehiclePlate: e.target.value })}
+                  />
                 </div>
               </div>
+            )}
+          </>
+        )}
 
-              {formData.role === 'driver' && (
-                <div style={{ animation: 'fadeIn 0.3s ease' }}>
-                  <div className="form-group">
-                    <label>Vehicle Model</label>
-                    <input 
-                      type="text" required 
-                      placeholder="e.g. Toyota Corolla"
-                      value={formData.vehicleModel}
-                      onChange={e => setFormData({ ...formData, vehicleModel: e.target.value })}
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label>License Plate</label>
-                    <input 
-                      type="text" required 
-                      placeholder="e.g. AA-12345"
-                      value={formData.vehiclePlate}
-                      onChange={e => setFormData({ ...formData, vehiclePlate: e.target.value })}
-                    />
-                  </div>
-                </div>
-              )}
-            </>
-          )}
+        {error && <div style={{ color: 'var(--error)', marginBottom: '1rem', fontSize: '0.875rem' }}>{error}</div>}
 
-          {error && <div style={{ color: 'var(--danger)', fontSize: '0.875rem', marginBottom: '1.5rem', textAlign: 'center' }}>{error}</div>}
-
-          <button type="submit" style={{ width: '100%', marginTop: '1rem' }}>
-            {isLogin ? 'Sign In' : 'Create Account'}
-          </button>
-        </form>
-      </div>
+        <button type="submit" className="btn btn-primary" disabled={loading}>
+          {loading ? <div className="spinner" style={{ borderLeftColor: '#fff' }}></div> : (isLogin ? 'Login' : 'Create Account')}
+        </button>
+      </form>
     </div>
   );
 }
